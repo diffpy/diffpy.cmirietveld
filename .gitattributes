@@ -1,0 +1,2 @@
+# Keep test data byte-for-byte, including CRLF line endings
+tests/testdata/** -text

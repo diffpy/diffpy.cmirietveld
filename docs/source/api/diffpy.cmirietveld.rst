@@ -89,22 +89,12 @@ Submodules
     :undoc-members:
     :show-inheritance:
 
-|data_parsers|
---------------
+|parsers|
+---------
 
-.. |data_parsers| replace:: diffpy.cmirietveld.data_parsers module
+.. |parsers| replace:: diffpy.cmirietveld.parsers module
 
-.. automodule:: diffpy.cmirietveld.data_parsers
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-|instrument_parsers|
---------------------
-
-.. |instrument_parsers| replace:: diffpy.cmirietveld.instrument_parsers module
-
-.. automodule:: diffpy.cmirietveld.instrument_parsers
+.. automodule:: diffpy.cmirietveld.parsers
     :members:
     :undoc-members:
     :show-inheritance:

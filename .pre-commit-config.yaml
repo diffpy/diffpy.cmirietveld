@@ -1,3 +1,5 @@
+# Keep test data byte-for-byte as the instruments and GSAS-II wrote it
+exclude: ^tests/testdata/
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit hooks
