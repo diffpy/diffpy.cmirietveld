@@ -5,7 +5,7 @@ from pyobjcryst.reflectionprofile import (
     ReflectionProfilePseudoVoigtTCH,
 )
 
-from diffpy.cmirietveld.profiles import PseudoVoigtProfile, TCHProfile
+from diffpy.cmirietveld.peak_profiles import PseudoVoigtProfile, TCHProfile
 
 
 @pytest.mark.parametrize(

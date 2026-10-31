@@ -39,12 +39,12 @@ Submodules
     :undoc-members:
     :show-inheritance:
 
-|profiles|
-----------
+|peak_profiles|
+---------------
 
-.. |profiles| replace:: diffpy.cmirietveld.profiles module
+.. |peak_profiles| replace:: diffpy.cmirietveld.peak_profiles module
 
-.. automodule:: diffpy.cmirietveld.profiles
+.. automodule:: diffpy.cmirietveld.peak_profiles
     :members:
     :undoc-members:
     :show-inheritance:
