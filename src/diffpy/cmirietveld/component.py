@@ -114,6 +114,23 @@ class Component(ParameterSet):
         self._settings_version += 1
         self._flush(other=(self,))
 
+    def get_settings(self):
+        """Return the settings of the component, for showing to a user.
+
+        A generator's ``print_info`` shows them next to the Parameters.
+        A component with settings overrides this to list the settings in
+        use, each under the name of the setter argument that sets it, so
+        a user sees what to pass to change it.
+
+        Returns
+        -------
+        dict of str to object
+            The value of each setting in use, by name. It is empty for a
+            component without settings.
+        """
+        settings = {}
+        return settings
+
     def install(self, pattern, diffraction):
         """Set the model up in one generator.
 

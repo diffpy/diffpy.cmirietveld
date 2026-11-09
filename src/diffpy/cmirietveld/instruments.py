@@ -365,6 +365,33 @@ class ConstantWavelengthInstrument(Instrument):
         self._polarization_rate = polarization_rate
         self.mark_settings_changed()
 
+    def get_settings(self):
+        """Return the settings in use, for showing to a user.
+
+        The radiation type and the polarization rate are always listed.
+        A tube adds ``xray_source`` and ``kalpha2_ratio``, and explicit
+        wavelengths add ``kalpha1``, ``kalpha2`` and ``kalpha2_ratio``.
+        A single wavelength adds nothing, since it is the ``wavelength``
+        Parameter.
+
+        Returns
+        -------
+        dict of str to object
+            The value of each setting in use, by the name of the setter
+            argument that sets it.
+        """
+        settings = {"radiation_type": self._radiation_type}
+        if self._xray_source is not None:
+            settings["xray_source"] = self._xray_source
+            settings["kalpha2_ratio"] = self._kalpha2_ratio
+        elif self._kalpha_wavelengths is not None:
+            kalpha1, kalpha2 = self._kalpha_wavelengths
+            settings["kalpha1"] = kalpha1
+            settings["kalpha2"] = kalpha2
+            settings["kalpha2_ratio"] = self._kalpha2_ratio
+        settings["polarization_rate"] = self._polarization_rate
+        return settings
+
     def install(self, pattern, diffraction):
         """Set the radiation, wavelengths and polarization of one
         generator.

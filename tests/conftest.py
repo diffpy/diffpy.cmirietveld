@@ -5,11 +5,21 @@ import numpy as np
 import pytest
 from pyobjcryst.crystal import create_crystal_from_cif
 from pyobjcryst.powderpattern import PowderPattern
-from pyobjcryst.reflectionprofile import ReflectionProfilePseudoVoigt
+from pyobjcryst.reflectionprofile import (
+    ReflectionProfilePseudoVoigt,
+    ReflectionProfilePseudoVoigtAnisotropic,
+)
 
 from diffpy.cmirietveld.component import Component
+from diffpy.cmirietveld.instruments import ConstantWavelengthInstrument
+from diffpy.cmirietveld.peak_profiles import PeakProfile, PseudoVoigtProfile
+from diffpy.cmirietveld.powderdiffractiongenerator import (
+    PowderDiffractionGenerator,
+)
+from diffpy.srfit.fitbase import FitContribution, Profile
 
 TESTDATA_DIR = Path(__file__).parent / "testdata"
+PBSO4_CIF = TESTDATA_DIR / "PbSO4-Wyckoff.cif"
 PSEUDO_VOIGT_PARAMETER_NAMES = {
     "U": "U",
     "V": "V",
@@ -24,23 +34,46 @@ PSEUDO_VOIGT_PARAMETER_NAMES = {
 
 class PbSO4Pattern:
     """A plain pyobjcryst pattern for PbSO4, on a 16-110 degree grid at
-    1.5406 angstroms, with its diffraction component."""
+    1.5406 angstroms, with its crystal and diffraction component."""
 
     def __init__(self):
-        crystal = create_crystal_from_cif(
-            str(TESTDATA_DIR / "PbSO4-Wyckoff.cif")
-        )
-        tth = np.arange(16.0, 110.0, 0.025)
+        self.crystal = create_crystal_from_cif(str(PBSO4_CIF))
+        self.tth = np.arange(16.0, 110.0, 0.025)
         self.pattern = PowderPattern()
         self.pattern.SetWavelength(1.5406)
-        self.pattern.SetPowderPatternX(np.radians(tth))
-        self.pattern.SetPowderPatternObs(np.zeros_like(tth))
-        self.diffraction = self.pattern.AddPowderPatternDiffraction(crystal)
+        self.pattern.SetPowderPatternX(np.radians(self.tth))
+        self.pattern.SetPowderPatternObs(np.zeros_like(self.tth))
+        self.diffraction = self.pattern.AddPowderPatternDiffraction(
+            self.crystal
+        )
 
     def calculate(self):
         self.pattern.Prepare()
         calculated_pattern = np.array(self.pattern.GetPowderPatternCalc())
         return calculated_pattern
+
+
+class ExternalPeakProfile(PeakProfile):
+    """A peak profile that stands for one written in another package.
+
+    The package doesn't know this class, so a generator that calculates
+    with it shows that a new peak profile needs no change to the
+    generator. It wraps pyobjcryst's anisotropic pseudo-Voigt, which the
+    package doesn't have yet, and maps only two of its Parameters.
+    """
+
+    def __init__(self):
+        PeakProfile.__init__(self)
+        self.create_parameters_from(
+            ReflectionProfilePseudoVoigtAnisotropic(),
+            {"W": "W", "G_HH": "G_HH"},
+        )
+
+    def install(self, pattern, diffraction):
+        diffraction.SetProfile(ReflectionProfilePseudoVoigtAnisotropic())
+
+    def update(self, pattern, diffraction):
+        self.push_parameters(diffraction.GetProfile())
 
 
 class NotificationCounter:
@@ -69,6 +102,43 @@ def pbso4_pattern():
 def other_pbso4_pattern():
     other_pbso4_pattern = PbSO4Pattern()
     return other_pbso4_pattern
+
+
+@pytest.fixture
+def pbso4_generator():
+    pbso4_generator = PowderDiffractionGenerator()
+    pbso4_generator.set_structure(create_crystal_from_cif(str(PBSO4_CIF)))
+    instrument = ConstantWavelengthInstrument()
+    instrument.set_wavelength(1.5406)
+    pbso4_generator.set_instrument(instrument)
+    pbso4_generator.set_peak_profile(PseudoVoigtProfile())
+    return pbso4_generator
+
+
+@pytest.fixture
+def other_pbso4_generator():
+    other_pbso4_generator = PowderDiffractionGenerator()
+    other_pbso4_generator.set_structure(
+        create_crystal_from_cif(str(PBSO4_CIF))
+    )
+    instrument = ConstantWavelengthInstrument()
+    instrument.set_wavelength(1.5406)
+    other_pbso4_generator.set_instrument(instrument)
+    other_pbso4_generator.set_peak_profile(PseudoVoigtProfile())
+    return other_pbso4_generator
+
+
+@pytest.fixture
+def pbso4_contribution(pbso4_generator, pbso4_pattern):
+    profile = Profile()
+    profile.set_observed_profile(
+        pbso4_pattern.tth, np.zeros_like(pbso4_pattern.tth)
+    )
+    pbso4_contribution = FitContribution("xray")
+    pbso4_contribution.set_profile(profile)
+    pbso4_contribution.add_profile_generator(pbso4_generator)
+    pbso4_contribution.set_equation("bragg")
+    return pbso4_contribution
 
 
 @pytest.fixture

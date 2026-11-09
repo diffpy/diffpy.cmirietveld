@@ -10,6 +10,10 @@ Laboratory. All rights reserved. This product includes software produced by
 UChicago Argonne, LLC under Contract No. DE-AC02-06CH11357 with the Department
 of Energy.
 
+``pbso4.stru`` is ``PbSO4-Wyckoff.cif`` written in the PDFfit format by
+diffpy.structure (``load_structure(...).write(..., "pdffit")``), with trailing
+whitespace removed.
+
 ``pbso4-esd.xra`` is ``PBSO4.XRA`` written in the GSAS ESD format, with the
 square root of each count as its uncertainty, to three decimals. Each line
 holds five (count, uncertainty) pairs of eight characters, and the last line

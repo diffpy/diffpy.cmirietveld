@@ -14,7 +14,7 @@
   "project_short_description": "A pack for diffpy.cmi that allows it to do Rietveld refinement of powder diffraction data",
   "project_keywords": "diffraction, PDF, X-ray, neutron, Rietveld",
   "minimum_supported_python_version": "3.12",
-  "maximum_supported_python_version": "3.14",
+  "maximum_supported_python_version": "3.13",
   "project_needs_c_code_compiled": "No",
   "project_has_gui_tests": "No"
 }

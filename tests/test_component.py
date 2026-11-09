@@ -328,3 +328,12 @@ def test_settings_version_after_parameter_change():
     actual_settings_version = component.settings_version
     expected_settings_version = 0
     assert actual_settings_version == expected_settings_version
+
+
+def test_get_settings():
+    # Test the settings of a component that has none, such as a peak profile
+    # Expected: An empty dict, so print_info shows no settings for it.
+    component = Component("peak_profile")
+    actual_settings = component.get_settings()
+    expected_settings = {}
+    assert actual_settings == expected_settings

@@ -4,7 +4,8 @@
 # (c) 2026 diffpy.cmirietveld contributors.
 # All rights reserved.
 #
-# File coded by: Caden Myers, members of the Billinge group, and contributors to the diffpy.cmirietveld project.
+# File coded by: Caden Myers, members of the Billinge group, and
+# contributors to the diffpy.cmirietveld project.
 #
 # See GitHub contributions for a more detailed list of contributors.
 # https://github.com/diffpy/diffpy.cmirietveld/graphs/contributors  # noqa: E501

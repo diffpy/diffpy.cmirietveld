@@ -153,6 +153,68 @@ def test_wavelength_after_setter(
 
 
 @pytest.mark.parametrize(
+    "setter_name, setter_args, expected_settings",
+    [
+        # Test the settings an instrument reports to print_info. Only the
+        # settings in use are listed, each under the name of the setter
+        # argument that sets it
+        # C1: A user sets a single wavelength.
+        # Expected: The radiation type and the polarization rate.
+        (
+            "set_wavelength",
+            [1.5406],
+            {"radiation_type": "X", "polarization_rate": 0.0},
+        ),
+        # C2: A user sets a Cu tube.
+        # Expected: The tube and its Kalpha2/Kalpha1 ratio are listed too.
+        (
+            "set_xray_source",
+            ["Cu"],
+            {
+                "radiation_type": "X",
+                "xray_source": "Cu",
+                "kalpha2_ratio": 0.5,
+                "polarization_rate": 0.0,
+            },
+        ),
+        # C3: A user sets the Kalpha1 and Kalpha2 wavelengths from their
+        # instrument file, with a ratio of 0.4.
+        # Expected: The two wavelengths and the ratio are listed.
+        (
+            "set_xray_wavelengths",
+            [CU_KALPHA1, CU_KALPHA2, 0.4],
+            {
+                "radiation_type": "X",
+                "kalpha1": CU_KALPHA1,
+                "kalpha2": CU_KALPHA2,
+                "kalpha2_ratio": 0.4,
+                "polarization_rate": 0.0,
+            },
+        ),
+        # C4: A user switches to neutrons.
+        # Expected: The radiation type is N.
+        (
+            "set_radiation_type",
+            ["N"],
+            {"radiation_type": "N", "polarization_rate": 0.0},
+        ),
+        # C5: A user sets a polarization rate of 0.95.
+        # Expected: The polarization rate is 0.95.
+        (
+            "set_polarization",
+            [0.95],
+            {"radiation_type": "X", "polarization_rate": 0.95},
+        ),
+    ],
+)
+def test_get_settings(setter_name, setter_args, expected_settings):
+    instrument = ConstantWavelengthInstrument()
+    getattr(instrument, setter_name)(*setter_args)
+    actual_settings = instrument.get_settings()
+    assert actual_settings == expected_settings
+
+
+@pytest.mark.parametrize(
     "setter_name, setter_args",
     [
         # Test that each setting method is a settings change, so every
