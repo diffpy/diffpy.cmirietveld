@@ -38,6 +38,12 @@ from diffpy.srfit.exceptions import SrFitError
 from diffpy.srfit.fitbase import ProfileGenerator
 
 PLACEHOLDER_TTH = np.linspace(5.0, 175.0, 1000)
+# ObjCryst draws each reflection out to 5 times its full width at 4% of
+# its maximum on either side of its center
+PROFILE_CUTOFF_INTENSITY = 0.04
+PROFILE_EXTENT_FACTOR = 5.0
+GRID_HEADROOM = 2.0
+MAX_TTH = 180.0
 
 
 class PowderDiffractionGenerator(ProfileGenerator):
@@ -84,6 +90,9 @@ class PowderDiffractionGenerator(ProfileGenerator):
         self._pattern = None
         self._diffraction = None
         self._last_tth = np.empty(0)
+        self._grid_top = -np.inf
+        self._width_ratio = 1.0
+        self._width_ratio_key = None
         self._installed_settings = {}
         self._new_parameter("scale", 1.0)
         self.instrument = None
@@ -341,6 +350,16 @@ class PowderDiffractionGenerator(ProfileGenerator):
         values into pyobjcryst, and the pattern is calculated and
         multiplied by ``scale``.
 
+        ObjCryst only lists the reflections up to the top of its grid, so
+        a reflection just above ``tth`` would leave out its tail inside
+        it. The pattern is therefore calculated on ``tth`` extended
+        upwards at its last step, as far as a reflection can reach back
+        into ``tth`` with the current peak width and zero shift, and only
+        the points of ``tth`` are returned. A peak width that depends on
+        hkl is measured on all the reflections listed, again whenever a
+        Parameter of the peak profile changes.
+        Reflections below ``tth`` are already drawn by ObjCryst.
+
         Parameters
         ----------
         tth : ndarray
@@ -365,8 +384,6 @@ class PowderDiffractionGenerator(ProfileGenerator):
         components = [self.instrument, self.peak_profile]
         for component in components:
             component._validate()
-        if not np.array_equal(tth, self._last_tth):
-            self._set_tth(tth)
         for component in components:
             installed_component, installed_version = (
                 self._installed_settings.get(component.name, (None, None))
@@ -382,8 +399,15 @@ class PowderDiffractionGenerator(ProfileGenerator):
                 )
         for component in components:
             component.update(self._pattern, self._diffraction)
+        tth = np.asarray(tth, dtype=float)
+        self._update_grid(tth)
         self._pattern.Prepare()
-        calculated_pattern = np.array(self._pattern.GetPowderPatternCalc())
+        used_width_ratio = self._width_ratio
+        self._width_ratio = self._get_width_ratio()
+        if self._width_ratio > used_width_ratio and self._update_grid(tth):
+            self._pattern.Prepare()
+        grid_pattern = np.array(self._pattern.GetPowderPatternCalc())
+        calculated_pattern = grid_pattern[: len(tth)]
         bragg_intensity = self.scale.value * calculated_pattern
         return bragg_intensity
 
@@ -442,10 +466,90 @@ class PowderDiffractionGenerator(ProfileGenerator):
         self.add_parameter_set(component)
         self._flush(other=(self,))
 
-    def _set_tth(self, tth):
+    def _update_grid(self, tth):
+        # ObjCryst leaves out the reflections above the top of its grid
+        needed_grid_top = self._get_needed_grid_top(tth)
+        grid_changed = (
+            not np.array_equal(tth, self._last_tth)
+            or needed_grid_top > self._grid_top
+        )
+        if grid_changed:
+            self._set_tth(tth, needed_grid_top)
+        return grid_changed
+
+    def _get_width_ratio(self):
+        # The largest ratio of a reflection's width to the width without
+        # hkl, which depends mostly on the direction of hkl, not its angle
+        profile_values = []
+        for parameter in self.peak_profile.iterate_over_parameters():
+            profile_values.append(parameter.value)
+        width_ratio_key = (
+            self.peak_profile,
+            self.peak_profile.settings_version,
+            tuple(profile_values),
+            self._diffraction.GetNbRefl(),
+        )
+        if width_ratio_key == self._width_ratio_key:
+            return self._width_ratio
+        reflection_tth = 2 * np.array(self._diffraction.GetTheta())
+        miller_h = np.array(self._diffraction.GetH())
+        miller_k = np.array(self._diffraction.GetK())
+        miller_l = np.array(self._diffraction.GetL())
+        profile = self._diffraction.GetProfile()
+        width_ratio = 1.0
+        for index in range(len(reflection_tth)):
+            center = self._pattern.X2XCorr(reflection_tth[index])
+            isotropic_width = profile.GetFullProfileWidth(
+                PROFILE_CUTOFF_INTENSITY, center, 0, 0, 0
+            )
+            reflection_width = profile.GetFullProfileWidth(
+                PROFILE_CUTOFF_INTENSITY,
+                center,
+                miller_h[index],
+                miller_k[index],
+                miller_l[index],
+            )
+            width_ratio = max(width_ratio, reflection_width / isotropic_width)
+        self._width_ratio_key = width_ratio_key
+        return width_ratio
+
+    def _get_needed_grid_top(self, tth):
+        if len(tth) < 2:
+            return tth[-1] if len(tth) else -np.inf
+        tth_max = tth[-1]
+        step = tth[-1] - tth[-2]
+        profile = self._diffraction.GetProfile()
+        reach_center = tth_max
+        for _ in range(20):
+            isotropic_width = profile.GetFullProfileWidth(
+                PROFILE_CUTOFF_INTENSITY, np.radians(reach_center), 0, 0, 0
+            )
+            width = self._width_ratio * np.degrees(isotropic_width)
+            new_reach_center = min(
+                tth_max + 2 * step + PROFILE_EXTENT_FACTOR * width, MAX_TTH
+            )
+            if abs(new_reach_center - reach_center) < 0.1 * step:
+                break
+            reach_center = max(reach_center, new_reach_center)
+        corrected_center = np.degrees(
+            self._pattern.X2XCorr(np.radians(reach_center))
+        )
+        needed_grid_top = 2 * reach_center - corrected_center
+        return needed_grid_top
+
+    def _set_tth(self, tth, needed_grid_top=None):
         self._last_tth = np.array(tth, dtype=float)
-        self._pattern.SetPowderPatternX(np.radians(self._last_tth))
-        self._pattern.SetPowderPatternObs(np.zeros_like(self._last_tth))
+        grid_tth = self._last_tth
+        if needed_grid_top is not None and len(tth) >= 2:
+            step = tth[-1] - tth[-2]
+            margin = GRID_HEADROOM * (needed_grid_top - tth[-1])
+            n_extra_points = max(int(np.ceil(margin / step)), 0)
+            extra_tth = tth[-1] + step * np.arange(1, n_extra_points + 1)
+            extra_tth = extra_tth[extra_tth < MAX_TTH]
+            grid_tth = np.concatenate((self._last_tth, extra_tth))
+        self._grid_top = grid_tth[-1] if len(grid_tth) else -np.inf
+        self._pattern.SetPowderPatternX(np.radians(grid_tth))
+        self._pattern.SetPowderPatternObs(np.zeros_like(grid_tth))
 
 
 def _read_crystal_from_cif(cif_path):

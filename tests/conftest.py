@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pytest
+from numpy.polynomial import chebyshev
 from pyobjcryst.crystal import create_crystal_from_cif
 from pyobjcryst.powderpattern import PowderPattern
 from pyobjcryst.reflectionprofile import (
@@ -10,6 +12,7 @@ from pyobjcryst.reflectionprofile import (
     ReflectionProfilePseudoVoigtAnisotropic,
 )
 
+from diffpy.cmirietveld.backgrounds import Background, ChebyshevBackground
 from diffpy.cmirietveld.component import Component
 from diffpy.cmirietveld.instruments import ConstantWavelengthInstrument
 from diffpy.cmirietveld.peak_profiles import PeakProfile, PseudoVoigtProfile
@@ -30,27 +33,70 @@ PSEUDO_VOIGT_PARAMETER_NAMES = {
     "asym1": "Asym1",
     "asym2": "Asym2",
 }
+PBSO4_X_RANGE = (16.0, 110.0)
+PBSO4_BACKGROUND_COEFFICIENTS = [150.0, -20.0, 8.0, -3.0, 1.0, 0.5]
+TOP_EDGE_EXTENSION = 20.0
+
+matplotlib.use("Agg")
 
 
 class PbSO4Pattern:
     """A plain pyobjcryst pattern for PbSO4, on a 16-110 degree grid at
-    1.5406 angstroms, with its crystal and diffraction component."""
+    1.5406 angstroms, with its crystal and diffraction component.
+
+    ObjCryst leaves out reflections above the top of its grid, so the
+    pattern is calculated on the grid extended 20 degrees upwards at the
+    same step, wider than any peak in these tests, and only the points of
+    ``tth`` are returned. This is the pattern with every reflection that
+    reaches the grid, which the generator also calculates.
+    """
 
     def __init__(self):
         self.crystal = create_crystal_from_cif(str(PBSO4_CIF))
-        self.tth = np.arange(16.0, 110.0, 0.025)
         self.pattern = PowderPattern()
         self.pattern.SetWavelength(1.5406)
-        self.pattern.SetPowderPatternX(np.radians(self.tth))
-        self.pattern.SetPowderPatternObs(np.zeros_like(self.tth))
+        self.set_tth(np.arange(16.0, 110.0, 0.025))
         self.diffraction = self.pattern.AddPowderPatternDiffraction(
             self.crystal
         )
 
+    def set_tth(self, tth):
+        self.tth = tth
+        step = tth[-1] - tth[-2]
+        n_extra_points = int(round(TOP_EDGE_EXTENSION / step))
+        extra_tth = tth[-1] + step * np.arange(1, n_extra_points + 1)
+        extended_tth = np.concatenate((tth, extra_tth))
+        self.pattern.SetPowderPatternX(np.radians(extended_tth))
+        self.pattern.SetPowderPatternObs(np.zeros_like(extended_tth))
+
     def calculate(self):
         self.pattern.Prepare()
-        calculated_pattern = np.array(self.pattern.GetPowderPatternCalc())
+        extended_pattern = np.array(self.pattern.GetPowderPatternCalc())
+        calculated_pattern = extended_pattern[: len(self.tth)]
         return calculated_pattern
+
+
+class SyntheticPattern:
+    """A pattern made of a known Chebyshev background and sharp peaks.
+
+    The background is ``PBSO4_BACKGROUND_COEFFICIENTS`` on
+    ``PBSO4_X_RANGE``, and 21 Gaussian peaks of 0.08 degrees standard
+    deviation stand between 20 and 106 degrees, so a background
+    estimated from the pattern can be compared with the known one.
+    """
+
+    def __init__(self, x_min=16.0, x_max=110.0):
+        self.x = np.arange(x_min, x_max, 0.025)
+        xmin, xmax = PBSO4_X_RANGE
+        scaled_x = 2.0 * (self.x - xmin) / (xmax - xmin) - 1.0
+        self.background = chebyshev.chebval(
+            scaled_x, PBSO4_BACKGROUND_COEFFICIENTS
+        )
+        peaks = np.zeros_like(self.x)
+        for index, center in enumerate(np.arange(20.0, 108.0, 4.3)):
+            height = 2000.0 / (1 + index % 3)
+            peaks += height * np.exp(-0.5 * ((self.x - center) / 0.08) ** 2)
+        self.y = self.background + peaks
 
 
 class ExternalPeakProfile(PeakProfile):
@@ -74,6 +120,24 @@ class ExternalPeakProfile(PeakProfile):
 
     def update(self, pattern, diffraction):
         self.push_parameters(diffraction.GetProfile())
+
+
+class ExternalBackground(Background):
+    """A background that stands for one written in another package.
+
+    The package doesn't know this class, so a FitContribution that
+    calculates with it shows that a new background needs only a subclass
+    of ``Background``. It is a flat background at the height of its one
+    Parameter, ``level``.
+    """
+
+    def __init__(self, name):
+        Background.__init__(self, name)
+        self._new_parameter("level", 0.0)
+
+    def __call__(self, x):
+        background = np.full_like(x, self.level.value)
+        return background
 
 
 class NotificationCounter:
@@ -139,6 +203,31 @@ def pbso4_contribution(pbso4_generator, pbso4_pattern):
     pbso4_contribution.add_profile_generator(pbso4_generator)
     pbso4_contribution.set_equation("bragg")
     return pbso4_contribution
+
+
+@pytest.fixture
+def synthetic_pattern():
+    synthetic_pattern = SyntheticPattern()
+    return synthetic_pattern
+
+
+@pytest.fixture
+def pbso4_background():
+    pbso4_background = ChebyshevBackground("background", x_range=PBSO4_X_RANGE)
+    for coefficient, value in zip(
+        pbso4_background.coefficients, PBSO4_BACKGROUND_COEFFICIENTS
+    ):
+        coefficient.set_value(value)
+    return pbso4_background
+
+
+@pytest.fixture
+def pbso4_background_points(pbso4_background):
+    x_points = np.linspace(16.0, 110.0, 15)
+    pbso4_background_points = np.column_stack(
+        (x_points, pbso4_background(x_points))
+    )
+    return pbso4_background_points
 
 
 @pytest.fixture

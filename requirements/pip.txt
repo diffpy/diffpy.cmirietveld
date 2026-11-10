@@ -2,3 +2,6 @@ numpy
 diffpy.srfit
 diffpy.cmistructure
 pyobjcryst
+matplotlib
+bg-mpl-stylesheets
+pybaselines

@@ -494,12 +494,106 @@ def test_call_after_grid_change(pbso4_generator, pbso4_pattern):
     new_tth = np.arange(20.0, 60.0, 0.02)
     actual_pattern = pbso4_generator(new_tth)
     # Calculate on the same grid directly in pyobjcryst
-    pbso4_pattern.pattern.SetPowderPatternX(np.radians(new_tth))
-    pbso4_pattern.pattern.SetPowderPatternObs(np.zeros_like(new_tth))
+    pbso4_pattern.set_tth(new_tth)
     expected_pattern = pbso4_pattern.calculate()
     actual_number_of_points = len(actual_pattern)
     expected_number_of_points = len(new_tth)
     assert actual_number_of_points == expected_number_of_points
+    assert np.allclose(actual_pattern, expected_pattern)
+
+
+@pytest.mark.parametrize(
+    "tth_min, tth_max, peak_width_w",
+    [
+        # Test that reflections just outside the calculation range still
+        # draw their tails inside it, as in GSAS-II. PbSO4's strongest
+        # reflection is at 29.675 degrees.
+        # C1: A user's range ends 0.3 degrees below the strongest
+        # reflection.
+        # Expected: The pattern equals plain pyobjcryst's on a grid running
+        # 30 degrees past the range, at the range's points, so the
+        # reflection's tail is drawn.
+        (16.0, 29.375, 0.01),
+        # C2: A user's range ends 0.3 degrees below the strongest
+        # reflection, and the peaks are five times as broad, with W = 0.05.
+        # Expected: The pattern equals plain pyobjcryst's on the wider grid,
+        # so the margin the generator adds grows with the peak width.
+        (16.0, 29.375, 0.05),
+        # C3: A user's range starts 0.3 degrees above the strongest
+        # reflection.
+        # Expected: The pattern equals plain pyobjcryst's on the wider grid,
+        # as ObjCryst already draws reflections below its grid.
+        (29.975, 60.0, 0.01),
+    ],
+)
+def test_call_with_reflection_outside_range(
+    pbso4_generator, pbso4_pattern, tth_min, tth_max, peak_width_w
+):
+    # Calculate with the generator on the user's range
+    wide_tth = np.round(np.arange(10.0, tth_max + 30.0, 0.025), 6)
+    in_range = (wide_tth >= tth_min - 1e-9) & (wide_tth <= tth_max + 1e-9)
+    tth = wide_tth[in_range]
+    pbso4_generator.peak_profile.W.set_value(peak_width_w)
+    actual_pattern = pbso4_generator(tth)
+    # Calculate directly in pyobjcryst on the wide grid, and keep the
+    # range's points
+    pbso4_pattern.set_tth(wide_tth)
+    pbso4_pattern.diffraction.GetProfile().GetPar("W").SetHumanValue(
+        peak_width_w
+    )
+    expected_pattern = pbso4_pattern.calculate()[in_range]
+    assert np.allclose(actual_pattern, expected_pattern)
+
+
+def test_evaluate_with_two_phases_and_background(
+    pbso4_pattern, pbso4_background
+):
+    # Test a FitContribution with two phases that share one instrument,
+    # as for a two-phase sample measured in one dataset
+    # Expected: The contribution's value is the sum of both phases'
+    # patterns and the background, and after a fit steps the shared zero
+    # to 0.1 degrees, both phases' peaks move: each phase equals plain
+    # pyobjcryst's pattern with a zero shift of 0.1 degrees.
+    # Make two phases with one instrument, and halve the second phase's
+    # scale so the two can be told apart
+    shared_instrument = ConstantWavelengthInstrument()
+    shared_instrument.set_wavelength(1.5406)
+    phase_1 = PowderDiffractionGenerator("phase_1")
+    phase_2 = PowderDiffractionGenerator("phase_2")
+    for phase in [phase_1, phase_2]:
+        phase.set_structure(PBSO4_CIF)
+        phase.set_instrument(shared_instrument)
+        phase.set_peak_profile(PseudoVoigtProfile())
+    phase_2.scale.set_value(0.5)
+    # Put both phases and the background in one contribution
+    profile = Profile()
+    profile.set_observed_profile(
+        pbso4_pattern.tth, np.zeros_like(pbso4_pattern.tth)
+    )
+    contribution = FitContribution("two_phases")
+    contribution.set_profile(profile)
+    contribution.add_profile_generator(phase_1)
+    contribution.add_profile_generator(phase_2)
+    contribution.register_calculator(pbso4_background, argnames=["x"])
+    contribution.set_equation("phase_1 + phase_2 + background")
+    # Evaluate once, then step the shared zero and evaluate again
+    contribution.evaluate()
+    shared_instrument.zero.set_value(0.1)
+    actual_pattern = contribution.evaluate()
+    actual_phase_1_pattern = contribution.evaluate_equation("phase_1")
+    actual_phase_2_pattern = contribution.evaluate_equation("phase_2")
+    # Calculate one phase with the same zero shift directly in pyobjcryst
+    pbso4_pattern.pattern.GetPar("Zero").SetHumanValue(0.1)
+    shifted_phase_pattern = pbso4_pattern.calculate()
+    expected_phase_1_pattern = shifted_phase_pattern
+    expected_phase_2_pattern = 0.5 * shifted_phase_pattern
+    expected_pattern = (
+        expected_phase_1_pattern
+        + expected_phase_2_pattern
+        + pbso4_background(pbso4_pattern.tth)
+    )
+    assert np.allclose(actual_phase_1_pattern, expected_phase_1_pattern)
+    assert np.allclose(actual_phase_2_pattern, expected_phase_2_pattern)
     assert np.allclose(actual_pattern, expected_pattern)
 
 

@@ -3,3 +3,6 @@ diffpy.srfit
 libobjcryst>=2026.3.0
 libboost-devel
 libboost-python
+matplotlib-base
+bg-mpl-stylesheets
+pybaselines
