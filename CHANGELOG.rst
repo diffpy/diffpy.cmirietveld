@@ -1,5 +1,0 @@
-=============
-Release notes
-=============
-
-.. current developments

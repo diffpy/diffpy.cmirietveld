@@ -1,6 +1,0 @@
-flake8
-pytest
-codecov
-coverage
-pytest-cov
-pytest-env
