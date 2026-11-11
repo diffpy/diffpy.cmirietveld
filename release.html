@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Release notes &mdash; diffpy.cmirietveld 0.1.0rc0 documentation</title>
+  <title>Release notes &mdash; diffpy.cmirietveld 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
@@ -14,7 +14,7 @@
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=9205c5d6"></script>
+      <script src="_static/documentation_options.js?v=38b66d78"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -48,7 +48,10 @@
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api/diffpy.cmirietveld.html">Package API</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Release notes</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Release notes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id1">0.1.0</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 
@@ -78,6 +81,24 @@
              
   <section id="release-notes">
 <span id="index-0"></span><h1>Release notes<a class="headerlink" href="#release-notes" title="Link to this heading"></a></h1>
+<section id="id1">
+<h2>0.1.0<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p><strong>Added:</strong></p>
+<ul class="simple">
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">ConstantWavelengthInstrument</span></code>, the instrument of a constant-wavelength x-ray, neutron or electron diffractometer, with refinable <code class="docutils literal notranslate"><span class="pre">zero</span></code>, <code class="docutils literal notranslate"><span class="pre">displacement</span></code>, <code class="docutils literal notranslate"><span class="pre">transparency</span></code>, <code class="docutils literal notranslate"><span class="pre">mu_r</span></code> and <code class="docutils literal notranslate"><span class="pre">wavelength</span></code>, and settings for the radiation type, an x-ray source’s Kalpha1/Kalpha2 doublet and the polarization rate.</p></li>
+<li><p>Warn when a <code class="docutils literal notranslate"><span class="pre">ConstantWavelengthInstrument</span></code> setter replaces a refined wavelength or a Kalpha1/Kalpha2 doublet, or when a polarization rate has no effect because the radiation isn’t x-rays.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Component.create_parameters_from</span></code>, which creates a component’s Parameters from a pyobjcryst model, with the model’s default values and its limits as bounds, and <code class="docutils literal notranslate"><span class="pre">Component.push_parameters</span></code>, which writes the values back and raises a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> for a value outside the limits instead of letting ObjCryst clamp it silently.</p></li>
+<li><p>Add the skeleton of the package: <code class="docutils literal notranslate"><span class="pre">PowderDiffractionGenerator</span></code>, the <code class="docutils literal notranslate"><span class="pre">Component</span></code> base class, the peak profile, instrument, intensity correction and intensity source components, <code class="docutils literal notranslate"><span class="pre">ChebyshevBackground</span></code>, and the parsers of data and instrument parameter files. The classes are stubs that raise <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code> until they are filled in.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Component.settings_version</span></code> and <code class="docutils literal notranslate"><span class="pre">Component.mark_settings_changed</span></code>, so a generator can run <code class="docutils literal notranslate"><span class="pre">install</span></code> again after a setting of a component changes.</p></li>
+<li><p>Add a <code class="docutils literal notranslate"><span class="pre">target</span></code> argument to <code class="docutils literal notranslate"><span class="pre">Component.create_parameters_from</span></code> and <code class="docutils literal notranslate"><span class="pre">Component.push_parameters</span></code>, so one component can configure several pyobjcryst objects, such as a pattern and its radiation.</p></li>
+<li><p>Add the <code class="docutils literal notranslate"><span class="pre">PseudoVoigtProfile</span></code> and <code class="docutils literal notranslate"><span class="pre">TCHProfile</span></code> peak profile components, which create their Parameters from pyobjcryst’s <code class="docutils literal notranslate"><span class="pre">ReflectionProfilePseudoVoigt</span></code> and <code class="docutils literal notranslate"><span class="pre">ReflectionProfilePseudoVoigtTCH</span></code> and configure a pyobjcryst powder pattern with <code class="docutils literal notranslate"><span class="pre">install</span></code> and <code class="docutils literal notranslate"><span class="pre">update</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GSASDataParser</span></code> reads GSAS STD and ESD powder data files, with counting-statistics uncertainties for STD files.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">PowderDiffractionGenerator</span></code>, which calculates one phase’s Bragg intensity with pyobjcryst from a structure set with <code class="docutils literal notranslate"><span class="pre">set_structure</span></code> (a pyobjcryst <code class="docutils literal notranslate"><span class="pre">Crystal</span></code>, the path to a CIF file or a ParameterSet), a peak profile set with <code class="docutils literal notranslate"><span class="pre">set_peak_profile</span></code> and an instrument set with <code class="docutils literal notranslate"><span class="pre">set_instrument</span></code>, and a refinable <code class="docutils literal notranslate"><span class="pre">scale</span></code>. It has no default peak profile or instrument, so all three must be set before a pattern is calculated.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">PowderDiffractionGenerator.print_info</span></code>, which prints the generator’s structure, instrument and peak profile with their settings and Parameter values.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">Component.get_settings</span></code>, which returns a component’s settings for showing to a user, and its <code class="docutils literal notranslate"><span class="pre">ConstantWavelengthInstrument</span></code> version, which lists the radiation type, the x-ray source or Kalpha1/Kalpha2 wavelengths, and the polarization rate.</p></li>
+<li><p>Warn when <code class="docutils literal notranslate"><span class="pre">set_structure</span></code>, <code class="docutils literal notranslate"><span class="pre">set_peak_profile</span></code> or <code class="docutils literal notranslate"><span class="pre">set_instrument</span></code> replaces a structure or component whose Parameters are used in a fit recipe.</p></li>
+</ul>
+</section>
 </section>
 
 
